@@ -71,8 +71,4 @@ def run_qa_flow(question: str) -> Dict[str, Any]:
 
     final_state = graph.invoke(initial_state)
 
-    return {
-        "answer": final_state.get("answer", ""),
-        "draft_answer": final_state.get("draft_answer", ""),
-        "context": final_state.get("context", ""),
-    }
+    return final_state
