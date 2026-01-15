@@ -3,7 +3,10 @@
 from langchain_core.tools import tool
 
 from ..retrieval.vector_store import retrieve
-from ..retrieval.serialization import serialize_chunks
+from ..retrieval.serialization import (
+    serialize_chunks,
+    serialize_chunks_with_citations,
+)
 
 
 @tool(response_format="content_and_artifact")
@@ -26,9 +29,11 @@ def retrieval_tool(query: str):
     # Retrieve documents from vector store
     docs = retrieve(query, k=4)
 
-    # Serialize chunks into formatted string (content)
-    context = serialize_chunks(docs)
+    # Serialize chunks with citations for Feature 4
+    # Returns: (context_string_with_IDs, citation_map_dict)
+    context, citations = serialize_chunks_with_citations(docs)
 
-    # Return tuple: (serialized content, artifact documents)
+    # Return tuple: (serialized content with citations, artifact documents)
     # This follows LangChain's content_and_artifact response format
+    # artifacts (docs) are used by agents.py to extract citations
     return context, docs

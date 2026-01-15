@@ -14,10 +14,13 @@ class QuestionRequest(BaseModel):
 class QAResponse(BaseModel):
     """Response body for the `/qa` endpoint.
 
-    From the API consumer's perspective we only expose the final,
-    verified answer plus some metadata (e.g. context snippets).
-    Internal draft answers remain inside the agent pipeline.
+    From the API consumer's perspective we expose the final, verified answer
+    plus context snippets and citation information.
+
+    Enhancement for Feature 4 (Evidence-Aware Answers):
+    - `citations`: Maps chunk IDs (C1, C2, etc.) to metadata for traceable sources
     """
 
     answer: str
     context: str
+    citations: dict[str, dict] | None = None

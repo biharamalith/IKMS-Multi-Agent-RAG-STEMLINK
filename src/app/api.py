@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from .models import QuestionRequest, QAResponse
 from .services.qa_service import answer_question
@@ -16,6 +17,15 @@ app = FastAPI(
         "will be wired to a multi-agent RAG pipeline in later user stories."
     ),
     version="0.1.0",
+)
+
+# Enable CORS for frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -47,8 +57,12 @@ async def qa_endpoint(payload: QuestionRequest) -> QAResponse:
     US-001 requirements:
     - Accept POST requests at `/qa` with JSON body containing a `question` field
     - Validate the request format and return 400 for invalid requests
-    - Return 200 with `answer`, `draft_answer`, and `context` fields
+    - Return 200 with `answer` and `context` fields
     - Delegate to the multi-agent RAG service layer for processing
+
+    Enhancement for Feature 4 (Evidence-Aware Answers):
+    - Returns `citations` mapping chunk IDs to source metadata
+    - Enables frontend to display traceable sources
     """
 
     question = payload.question.strip()
@@ -66,6 +80,7 @@ async def qa_endpoint(payload: QuestionRequest) -> QAResponse:
     return QAResponse(
         answer=result.get("answer", ""),
         context=result.get("context", ""),
+        citations=result.get("citations"),
     )
 
 
