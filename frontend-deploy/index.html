@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IKMS Multi-Agent RAG - Evidence-Aware QA</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            max-width: 1400px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .question-section h2 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .question-section h2::before {
+            content: "❓";
+            font-size: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        #questionInput {
+            flex: 1;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        #questionInput:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #e0e0e0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .answer-section h2 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .answer-section h2::before {
+            content: "💡";
+            font-size: 20px;
+        }
+
+        .answer-area {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+            height: 100%;
+        }
+
+        .answer-text {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            line-height: 1.6;
+            color: #333;
+            font-size: 15px;
+            border-left: 4px solid #667eea;
+            min-height: 100px;
+            overflow-y: auto;
+        }
+
+        .answer-text.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-style: italic;
+        }
+
+        .citation-link {
+            display: inline-block;
+            background: #e8eaf6;
+            color: #667eea;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            border: 1px solid #d1d5db;
+            white-space: nowrap;
+        }
+
+        .citation-link:hover {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .citation-link.active {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .citations-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .citations-section h3 {
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .citations-section h3::before {
+            content: "📚";
+            font-size: 16px;
+        }
+
+        .citations-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .citation-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .citation-item:hover {
+            background: #e8eaf6;
+            transform: translateX(5px);
+        }
+
+        .citation-item.active {
+            background: #e8eaf6;
+            border-left-color: #764ba2;
+        }
+
+        .citation-id {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .citation-meta {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 8px;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .citation-meta-label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .citation-snippet {
+            background: white;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #555;
+            margin-top: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #c33;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .feature-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .footer {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 12px;
+            margin-top: 20px;
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            padding: 8px;
+            border-radius: 6px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Panel: Question Input -->
+        <div class="card">
+            <div class="header">
+                <h1>IKMS Multi-Agent RAG</h1>
+                <p>Evidence-Aware Question Answering <span class="feature-badge">Feature 4</span></p>
+            </div>
+
+            <div class="question-section">
+                <h2>Ask Your Question</h2>
+                <div class="error-message" id="errorMessage"></div>
+                <div class="input-group">
+                    <textarea 
+                        id="questionInput" 
+                        placeholder="Ask a question about the vector databases paper..."
+                        style="padding: 12px 15px; min-height: 100px; resize: vertical; font-family: inherit;"
+                    ></textarea>
+                </div>
+                <button class="btn btn-primary" id="submitBtn" onclick="submitQuestion()">
+                    <span>🔍 Ask Question</span>
+                </button>
+
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 10px;">Processing your question...</p>
+                </div>
+
+                <div class="stats" id="statsSection" style="display: none;">
+                    <div class="stat-item">
+                        <div class="stat-value" id="citationCount">0</div>
+                        <div class="stat-label">Citations Found</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="chunksCount">0</div>
+                        <div class="stat-label">Chunks Retrieved</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Answer & Citations -->
+        <div class="card">
+            <div class="answer-section">
+                <h2>Answer</h2>
+                <div class="answer-text empty" id="answerText">
+                    Ask a question to see the answer with citations...
+                </div>
+
+                <div class="citations-section" id="citationsPanel" style="display: none;">
+                    <h3>Source Materials</h3>
+                    <div class="citations-list" id="citationsList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Powered by LangGraph + Pinecone | Feature 4: Evidence-Aware Answers with Chunk Citations</p>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://ikms-multi-agent-rag-3cc2c786cc94.herokuapp.com';
+
+        async function submitQuestion() {
+            const question = document.getElementById('questionInput').value.trim();
+            const submitBtn = document.getElementById('submitBtn');
+            const errorMessage = document.getElementById('errorMessage');
+            const loading = document.getElementById('loading');
+            const answerText = document.getElementById('answerText');
+
+            // Validation
+            if (!question) {
+                showError('Please enter a question.');
+                return;
+            }
+
+            if (question.length > 500) {
+                showError('Question is too long (max 500 characters).');
+                return;
+            }
+
+            // Reset state
+            errorMessage.style.display = 'none';
+            submitBtn.disabled = true;
+            loading.style.display = 'block';
+            answerText.className = 'answer-text';
+            document.getElementById('citationsPanel').style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/qa`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ question }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Failed to get answer');
+                }
+
+                const data = await response.json();
+                displayAnswer(data);
+            } catch (error) {
+                showError(`Error: ${error.message}`);
+                answerText.textContent = 'Failed to get answer. Please try again.';
+                answerText.className = 'answer-text';
+            } finally {
+                submitBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        function displayAnswer(data) {
+            const answerText = document.getElementById('answerText');
+            const citationsPanel = document.getElementById('citationsPanel');
+            const citationsList = document.getElementById('citationsList');
+            const statsSection = document.getElementById('statsSection');
+
+            // Display answer with interactive citations
+            const answerWithInteractiveCitations = highlightCitations(data.answer);
+            answerText.innerHTML = answerWithInteractiveCitations;
+            answerText.className = 'answer-text';
+
+            // Display citations panel if citations exist
+            if (data.citations && Object.keys(data.citations).length > 0) {
+                citationsList.innerHTML = renderCitations(data.citations);
+                citationsPanel.style.display = 'block';
+
+                // Setup citation interactions
+                setupCitationInteractions(data.citations);
+
+                // Show stats - count USED citations (in answer) vs RETRIEVED chunks (total)
+                const usedCitations = new Set();
+                const citationMatches = data.answer.match(/\[C(\d+)\]/g);
+                if (citationMatches) {
+                    citationMatches.forEach(match => {
+                        usedCitations.add(match);
+                    });
+                }
+                const totalChunks = Object.keys(data.citations).length;
+                
+                document.getElementById('citationCount').textContent = usedCitations.size;
+                document.getElementById('chunksCount').textContent = totalChunks;
+                statsSection.style.display = 'grid';
+            } else {
+                citationsPanel.style.display = 'none';
+                statsSection.style.display = 'none';
+            }
+        }
+
+        function highlightCitations(answer) {
+            // Find all [C1], [C2], etc. patterns and make them clickable
+            return answer.replace(/\[C(\d+)\]/g, (match, num) => {
+                return `<span class="citation-link" onclick="highlightCitation('C${num}')" title="Click to view source">[C${num}]</span>`;
+            });
+        }
+
+        function renderCitations(citations) {
+            return Object.entries(citations)
+                .map(([citationId, metadata]) => `
+                    <div class="citation-item" id="citation-${citationId}" onclick="highlightCitation('${citationId}')">
+                        <div class="citation-id">${citationId}</div>
+                        <div class="citation-meta">
+                            <div class="citation-meta-label">Source:</div>
+                            <div>${metadata.source}</div>
+                            <div class="citation-meta-label">Page:</div>
+                            <div>${metadata.page}</div>
+                        </div>
+                        <div class="citation-snippet">${metadata.snippet}</div>
+                    </div>
+                `)
+                .join('');
+        }
+
+        function highlightCitation(citationId) {
+            // Remove previous active states
+            document.querySelectorAll('.citation-link.active, .citation-item.active').forEach(el => {
+                el.classList.remove('active');
+            });
+
+            // Add active state to clicked citation
+            document.querySelectorAll(`[class*="citation-link"]`).forEach(el => {
+                if (el.textContent === `[${citationId}]`) {
+                    el.classList.add('active');
+                }
+            });
+
+            const citationItem = document.getElementById(`citation-${citationId}`);
+            if (citationItem) {
+                citationItem.classList.add('active');
+                citationItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        function setupCitationInteractions(citations) {
+            Object.keys(citations).forEach(citationId => {
+                const citationItem = document.getElementById(`citation-${citationId}`);
+                if (citationItem) {
+                    citationItem.addEventListener('mouseover', () => {
+                        document.querySelectorAll(`[class*="citation-link"]`).forEach(link => {
+                            if (link.textContent === `[${citationId}]`) {
+                                link.classList.add('active');
+                            }
+                        });
+                    });
+
+                    citationItem.addEventListener('mouseout', () => {
+                        document.querySelectorAll(`[class*="citation-link"]`).forEach(link => {
+                            link.classList.remove('active');
+                        });
+                    });
+                }
+            });
+        }
+
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        // Allow Enter key to submit (Ctrl+Enter for textarea)
+        document.getElementById('questionInput').addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                submitQuestion();
+            }
+        });
+
+        // Placeholder example on load
+        window.addEventListener('load', () => {
+            console.log('IKMS Multi-Agent RAG loaded. Ready for Feature 4: Evidence-Aware Answers');
+        });
+    </script>
+</body>
+</html>
