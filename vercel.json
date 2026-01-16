@@ -1,15 +1,10 @@
 {
   "version": 2,
   "public": true,
-  "buildCommand": "echo 'Frontend is static HTML'",
-  "outputDirectory": ".",
-  "env": {
-    "VITE_API_URL": "@vite_api_url"
-  },
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "index.html"
+      "dest": "/index.html"
     }
   ]
 }
