@@ -29,6 +29,20 @@ app.add_middleware(
 )
 
 
+@app.get("/")
+async def root():
+    """Root endpoint to verify API is running."""
+    return {
+        "status": "ok",
+        "message": "IKMS Multi-Agent RAG API is running",
+        "endpoints": {
+            "docs": "/docs",
+            "qa": "/qa (POST)",
+            "index_pdf": "/index-pdf (POST)"
+        }
+    }
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(
     request: Request, exc: Exception
