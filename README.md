@@ -10,7 +10,7 @@
 
 ## 📋 Overview
 
-This project is a **Knowledge-Based Question-Answering Application** built with LangChain 1.0, Pinecone vector database, and OpenAI GPT-3.5. The system enables users to upload PDF documents, index their content using vector embeddings, and ask questions that are answered using retrieval-augmented generation (RAG).
+This project is a **Knowledge-Based Question-Answering Application** built with LangChain 1.0, LangGraph, Pinecone vector database, and OpenAI GPT-4o-mini. The system uses a pre-indexed PDF document about vector databases and answers questions using retrieval-augmented generation (RAG) with evidence-aware citations.
 
 ### Key Features
 
@@ -27,10 +27,12 @@ This project is a **Knowledge-Based Question-Answering Application** built with 
 
 ### Backend Stack
 - **LangChain 1.0**: Orchestration framework for LLM applications
+- **LangGraph**: Multi-agent workflow management
 - **Pinecone**: Cloud-based vector database for embeddings
-- **OpenAI GPT-3.5 Turbo**: Language model for question answering
-- **FastAPI**: High-performance web framework
-- **PyMuPDF4LLM**: PDF text extraction optimized for LLMs
+- **OpenAI GPT-4o-mini**: Language model for question answering
+- **OpenAI text-embedding-3-large**: Embedding model for vectorization
+- **FastAPI**: High-performance async web framework
+- **PyPDF**: PDF text extraction
 
 ### Frontend Stack
 - **HTML/CSS/JavaScript**: Lightweight, responsive interface
@@ -75,7 +77,7 @@ PINECONE_INDEX_NAME=knowledge-index
 
 4. **Run the backend**:
 ```bash
-uvicorn app:app --reload
+uvicorn src.app.api:app --reload
 ```
 
 The API will be available at `http://localhost:8000`
@@ -107,59 +109,71 @@ python -m http.server 8080
 ### Via Web Interface
 
 1. Navigate to the [frontend application](https://candid-otter-3f6fa2.netlify.app)
-2. Upload a PDF document
-3. Wait for indexing to complete
-4. Ask questions about the document content
-5. View AI-generated answers with citations
+2. Type a question about vector databases in the text area
+3. Click "Ask Question"
+4. View AI-generated answers with citations
+5. Click on citation links to see source materials
+
+**Sample Questions to Try:**
+- What is a vector database?
+- How does Pinecone work?
+- What are embeddings?
+- What is the difference between vector databases and traditional databases?
+- How are similarity searches performed in vector databases?
+- What are the use cases for vector databases?
+- Explain approximate nearest neighbor search
+- What is semantic search?
 
 ### Via API
 
-**Upload a Document**:
-```bash
-curl -X POST "https://ikms-multi-agent-rag-3cc2c786cc94.herokuapp.com/upload" \
-  -F "file=@document.pdf"
-```
-
 **Ask a Question**:
 ```bash
-curl -X POST "https://ikms-multi-agent-rag-3cc2c786cc94.herokuapp.com/ask" \
+curl -X POST "https://ikms-multi-agent-rag-3cc2c786cc94.herokuapp.com/qa" \
   -H "Content-Type: application/json" \
-  -d '{"query": "What is the main topic of the document?"}'
+  -d '{"question": "What is a vector database?"}'
 ```
 
 **Response Format**:
 ```json
 {
-  "question": "What is the main topic of the document?",
-  "answer": "The document discusses...",
-  "sources": [
-    {
-      "page": 1,
-      "content": "..."
+  "answer": "A vector database is optimized for storing and querying high-dimensional embeddings...",
+  "context": "Retrieved context from documents...",
+  "citations": {
+    "C1": {
+      "source": "vector_db_paper.pdf",
+      "page": 3,
+      "snippet": "Vector databases are optimized for..."
     }
-  ]
+  }
 }
+```
+
+**Upload a PDF Document**:
+```bash
+curl -X POST "https://ikms-multi-agent-rag-3cc2c786cc94.herokuapp.com/index-pdf" \
+  -F "file=@document.pdf"
 ```
 
 ---
 
 ## 📚 API Endpoints
 
-### `POST /upload`
+### `GET /`
+Health check and API info
+- **Output**: Status message with available endpoints
+
+### `POST /qa`
+Ask a question about indexed documents
+- **Input**: `{"question": "your question"}`
+- **Output**: Answer with citations
+
+### `POST /index-pdf`
 Upload and index a PDF document
 - **Input**: Multipart form data with PDF file
-- **Output**: Success message with document ID
-
-### `POST /ask`
-Ask a question about indexed documents
-- **Input**: `{"query": "your question"}`
-- **Output**: Answer with source citations
+- **Output**: Success message with chunks indexed count
 
 ### `GET /docs`
 Interactive API documentation (Swagger UI)
-
-### `GET /health`
-Health check endpoint
 
 ---
 
@@ -167,19 +181,34 @@ Health check endpoint
 
 ### Project Structure
 ```
-IKMS-Multi-Agent-RAG/
-├── app/                    # Backend application
-│   ├── main.py            # FastAPI application
-│   ├── config.py          # Configuration
-│   ├── models.py          # Data models
-│   └── utils/             # Utility functions
-├── src/                   # Frontend source
-│   └── index.html         # Main UI
-├── requirements.txt       # Python dependencies
-├── runtime.txt           # Python version for Heroku
-├── Procfile              # Heroku deployment config
-├── vercel.json           # Vercel deployment config
-└── README.md             # This file
+class-12/
+├── src/
+│   └── app/
+│       ├── __init__.py
+│       ├── api.py              # FastAPI application
+│       ├── models.py           # Pydantic data models
+│       ├── core/
+│       │   ├── config.py       # Configuration settings
+│       │   ├── agents/         # LangGraph agents
+│       │   │   ├── agents.py
+│       │   │   ├── graph.py
+│       │   │   ├── prompts.py
+│       │   │   ├── state.py
+│       │   │   └── tools.py
+│       │   ├── llm/
+│       │   │   └── factory.py  # LLM initialization
+│       │   └── retrieval/
+│       │       ├── vector_store.py
+│       │       └── serialization.py
+│       └── services/
+│           ├── qa_service.py       # QA orchestration
+│           └── indexing_service.py # PDF indexing
+├── index.html              # Frontend UI
+├── requirements.txt        # Python dependencies
+├── pyproject.toml         # Project configuration
+├── runtime.txt            # Python version for Heroku
+├── Procfile               # Heroku deployment config
+└── README.md              # This file
 ```
 
 ### Running Tests
@@ -225,12 +254,15 @@ vercel --prod
 ## 🛠️ Technologies
 
 - **LangChain 1.0**: LLM application framework
-- **LangGraph**: Workflow orchestration
-- **Pinecone**: Vector database
-- **OpenAI GPT-3.5**: Large language model
-- **FastAPI**: Modern web framework
-- **PyMuPDF4LLM**: PDF processing
+- **LangGraph**: Multi-agent workflow orchestration
+- **Pinecone**: Cloud vector database
+- **OpenAI GPT-4o-mini**: Large language model
+- **OpenAI text-embedding-3-large**: Embedding model
+- **FastAPI**: Modern async web framework
+- **PyPDF**: PDF processing
 - **Uvicorn**: ASGI server
+- **Netlify**: Frontend hosting
+- **Heroku**: Backend hosting
 
 ---
 
