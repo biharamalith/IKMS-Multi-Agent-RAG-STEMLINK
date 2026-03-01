@@ -10,8 +10,8 @@ to context, enabling downstream agents to produce cited answers.
 
 from typing import List
 
-from langchain.agents import create_agent
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langgraph.prebuilt import create_react_agent
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from ..llm.factory import create_chat_model
 from ..retrieval.serialization import serialize_chunks_with_citations
@@ -32,24 +32,25 @@ def _extract_last_ai_content(messages: List[object]) -> str:
     return ""
 
 
-# Define agents at module level for reuse
-retrieval_agent = create_agent(
-    model=create_chat_model(),
-    tools=[retrieval_tool],
-    system_prompt=RETRIEVAL_SYSTEM_PROMPT,
-)
+def _get_retrieval_agent():
+    """Lazy-create the retrieval agent (with tools)."""
+    return create_react_agent(
+        model=create_chat_model(),
+        tools=[retrieval_tool],
+        prompt=SystemMessage(content=RETRIEVAL_SYSTEM_PROMPT),
+    )
 
-summarization_agent = create_agent(
-    model=create_chat_model(),
-    tools=[],
-    system_prompt=SUMMARIZATION_SYSTEM_PROMPT,
-)
 
-verification_agent = create_agent(
-    model=create_chat_model(),
-    tools=[],
-    system_prompt=VERIFICATION_SYSTEM_PROMPT,
-)
+def _get_summarization_agent():
+    """Lazy-create the summarization LLM (no tools needed)."""
+    llm = create_chat_model()
+    return llm
+
+
+def _get_verification_agent():
+    """Lazy-create the verification LLM (no tools needed)."""
+    llm = create_chat_model()
+    return llm
 
 
 def retrieval_node(state: QAState) -> QAState:
@@ -71,7 +72,8 @@ def retrieval_node(state: QAState) -> QAState:
     """
     question = state["question"]
 
-    result = retrieval_agent.invoke({"messages": [HumanMessage(content=question)]})
+    agent = _get_retrieval_agent()
+    result = agent.invoke({"messages": [HumanMessage(content=question)]})
 
     messages = result.get("messages", [])
     context = ""
@@ -111,11 +113,13 @@ def summarization_node(state: QAState) -> QAState:
 
     user_content = f"Question: {question}\n\nContext:\n{context}"
 
-    result = summarization_agent.invoke(
-        {"messages": [HumanMessage(content=user_content)]}
-    )
-    messages = result.get("messages", [])
-    draft_answer = _extract_last_ai_content(messages)
+    llm = _get_summarization_agent()
+    messages = [
+        SystemMessage(content=SUMMARIZATION_SYSTEM_PROMPT),
+        HumanMessage(content=user_content),
+    ]
+    response = llm.invoke(messages)
+    draft_answer = response.content
 
     return {
         "draft_answer": draft_answer,
@@ -146,11 +150,13 @@ Draft Answer:
 Please verify and correct the draft answer, removing any unsupported claims.
 Maintain all citations [C1], [C2], etc. in the final answer."""
 
-    result = verification_agent.invoke(
-        {"messages": [HumanMessage(content=user_content)]}
-    )
-    messages = result.get("messages", [])
-    answer = _extract_last_ai_content(messages)
+    llm = _get_verification_agent()
+    messages = [
+        SystemMessage(content=VERIFICATION_SYSTEM_PROMPT),
+        HumanMessage(content=user_content),
+    ]
+    response = llm.invoke(messages)
+    answer = response.content
 
     return {
         "answer": answer,

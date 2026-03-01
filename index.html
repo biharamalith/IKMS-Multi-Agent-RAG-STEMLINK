@@ -362,6 +362,98 @@
             margin-top: 20px;
         }
 
+        .upload-section {
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .upload-section h2 {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .upload-section h2::before {
+            content: "📄";
+            font-size: 20px;
+        }
+
+        .upload-area {
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            padding: 30px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+            margin-bottom: 15px;
+        }
+
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #667eea;
+            background: #f0f0ff;
+        }
+
+        .upload-area p {
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .upload-area .upload-icon {
+            font-size: 36px;
+            margin-bottom: 10px;
+        }
+
+        .upload-area .file-name {
+            color: #667eea;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .upload-progress {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        .upload-result {
+            display: none;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .upload-result.success {
+            background: #eef9ee;
+            color: #2e7d32;
+            border-left: 4px solid #2e7d32;
+        }
+
+        .upload-result.error {
+            background: #fee;
+            color: #c33;
+            border-left: 4px solid #c33;
+        }
+
         .tooltip {
             position: relative;
             display: inline-block;
@@ -429,6 +521,28 @@
                         <div class="stat-label">Chunks Retrieved</div>
                     </div>
                 </div>
+            </div>
+
+            <!-- PDF Upload Section -->
+            <div class="upload-section">
+                <h2>Upload PDF Document</h2>
+                <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+                    <div class="upload-icon">📁</div>
+                    <p>Click to select or drag & drop a PDF file</p>
+                    <p style="font-size: 12px; color: #999;">Supported: .pdf files only</p>
+                    <div class="file-name" id="fileName"></div>
+                </div>
+                <input type="file" id="fileInput" accept=".pdf,application/pdf" style="display: none;" onchange="handleFileSelect(event)">
+                <button class="btn btn-primary" id="uploadBtn" onclick="uploadPDF()" style="display: none;">
+                    <span>📤 Upload & Index</span>
+                </button>
+                <div class="upload-progress" id="uploadProgress">
+                    <p style="font-size: 13px; color: #667eea; margin-bottom: 8px;">Uploading & indexing...</p>
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill" id="progressBarFill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="upload-result" id="uploadResult"></div>
             </div>
         </div>
 
@@ -626,7 +740,101 @@
         // Placeholder example on load
         window.addEventListener('load', () => {
             console.log('IKMS Multi-Agent RAG loaded. Ready for Feature 4: Evidence-Aware Answers');
+
+            // Setup drag & drop for PDF upload
+            const uploadArea = document.getElementById('uploadArea');
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    document.getElementById('fileInput').files = files;
+                    handleFileSelect({ target: { files } });
+                }
+            });
         });
+
+        // ---- PDF Upload Functions ----
+        let selectedFile = null;
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.type !== 'application/pdf') {
+                showUploadResult('Only PDF files are supported.', false);
+                return;
+            }
+
+            selectedFile = file;
+            document.getElementById('fileName').textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+            document.getElementById('uploadBtn').style.display = 'flex';
+            document.getElementById('uploadResult').style.display = 'none';
+        }
+
+        async function uploadPDF() {
+            if (!selectedFile) return;
+
+            const uploadBtn = document.getElementById('uploadBtn');
+            const uploadProgress = document.getElementById('uploadProgress');
+            const progressBarFill = document.getElementById('progressBarFill');
+
+            uploadBtn.disabled = true;
+            uploadProgress.style.display = 'block';
+            document.getElementById('uploadResult').style.display = 'none';
+
+            // Simulate progress while uploading
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress = Math.min(progress + 10, 90);
+                progressBarFill.style.width = progress + '%';
+            }, 300);
+
+            try {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                const response = await fetch(`${API_BASE_URL}/index-pdf`, {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                clearInterval(progressInterval);
+                progressBarFill.style.width = '100%';
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Upload failed');
+                }
+
+                const data = await response.json();
+                showUploadResult(
+                    `Successfully indexed "${data.filename}" — ${data.chunks_indexed} chunks created.`,
+                    true
+                );
+            } catch (error) {
+                clearInterval(progressInterval);
+                showUploadResult(`Upload failed: ${error.message}`, false);
+            } finally {
+                uploadBtn.disabled = false;
+                uploadProgress.style.display = 'none';
+                progressBarFill.style.width = '0%';
+            }
+        }
+
+        function showUploadResult(message, success) {
+            const result = document.getElementById('uploadResult');
+            result.textContent = message;
+            result.className = 'upload-result ' + (success ? 'success' : 'error');
+            result.style.display = 'block';
+        }
     </script>
 </body>
 </html>

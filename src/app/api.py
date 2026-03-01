@@ -1,4 +1,6 @@
 from pathlib import Path
+import logging
+import traceback
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.responses import JSONResponse
@@ -7,6 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from .models import QuestionRequest, QAResponse
 from .services.qa_service import answer_question
 from .services.indexing_service import index_pdf_file
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 app = FastAPI(
@@ -58,9 +63,11 @@ async def unhandled_exception_handler(
         # Let FastAPI handle HTTPException as usual.
         raise exc
 
+    logger.error("Unhandled exception: %s\n%s", exc, traceback.format_exc())
+
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Internal server error"},
+        content={"detail": f"Internal server error: {str(exc)}"},
     )
 
 
